@@ -26,18 +26,25 @@ private:
     double distPlane;
     double rayAngleDelta;
     Player player;
+
+    /*      180deg
+     *
+     * 90deg       270deg
+     *
+     *       0deg
+     */
     uint8_t map[10][10] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 0, 0, 0, 1, 1, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    }; //         ^
+    };
     std::vector<int> debugLines;
 
     inline double dist(Vec2d v1, Vec2d v2)
@@ -117,7 +124,7 @@ public:
 
             if (rayAngle >= radians(90.0) && rayAngle < radians(270.0))
                 delta.x = -abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(rayAngle)));
-            else delta.x = static_cast<int32_t>(static_cast<double>(gridSize) / tan(rayAngle));
+            else delta.x = abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(rayAngle)));
 
             bool outOfBoundsH = false;
             while (!hasWall(rayIntersect)
@@ -145,7 +152,7 @@ public:
 
             if (rayAngle < radians(180.0))
                 delta.y = -abs(static_cast<int32_t>(64.0 * tan(rayAngle)));
-            else delta.y = static_cast<int32_t>(64.0 * tan(rayAngle));
+            else delta.y = abs(static_cast<int32_t>(64.0 * tan(rayAngle)));
 
             bool outOfBoundsV = false;
             while (!hasWall(rayIntersect)
@@ -205,7 +212,6 @@ public:
             player.angle -= sensitivity * fElapsedTime;
         player.angle = wrapAngle(player.angle);
 
-        Vec2d dir;
         double dirx = cos(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
         double diry = sin(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
         this->SetDrawTarget(&logsSprite);

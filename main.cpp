@@ -35,14 +35,14 @@ private:
      */
     uint8_t map[10][10] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 0, 1, 0, 0, 0, 1, 1, 0, 1},
+        {1, 0, 1, 0, 1, 0, 0, 1, 0, 1},
+        {1, 0, 1, 0, 1, 1, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+        {1, 1, 1, 1, 0, 1, 0, 1, 0, 1},
+        {1, 1, 1, 0, 0, 1, 0, 1, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 1, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 1, 0, 0, 0, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     };
     std::vector<int> debugLines;
@@ -205,14 +205,14 @@ public:
         this->DrawString(0, 0, std::to_string(player.angle * 180.0/M_PI), olc::RED);
 
         const double sensitivity = 2.0;
-        const double walkSensitivity = 60.0;
+        const double walkSensitivity = 120.0;
         if (this->GetKey(olc::Key::A).bHeld)
             player.angle += sensitivity * fElapsedTime;
         if (this->GetKey(olc::Key::D).bHeld)
             player.angle -= sensitivity * fElapsedTime;
         player.angle = wrapAngle(player.angle);
 
-        double dirx = cos(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
+        double dirx = -cos(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
         double diry = sin(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
         this->SetDrawTarget(&logsSprite);
         this->DrawString(0, 8, std::to_string(dirx), olc::RED);
@@ -267,7 +267,7 @@ public:
 int main()
 {
     Raytracer demo;
-    if (demo.Construct(320, 200, 1, 1))
+    if (demo.Construct(160, 100, 1, 1))
         demo.Start();
     return 0;
 }

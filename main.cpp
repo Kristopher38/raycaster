@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <utility>
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 
@@ -35,14 +36,14 @@ private:
      */
     uint8_t map[10][10] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 0, 1, 0, 0, 0, 1, 1, 0, 1},
-        {1, 0, 1, 0, 1, 0, 0, 1, 0, 1},
-        {1, 0, 1, 0, 1, 1, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 1, 0, 1, 0, 1},
-        {1, 1, 1, 1, 0, 1, 0, 1, 0, 1},
-        {1, 1, 1, 0, 0, 1, 0, 1, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 1, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     };
     std::vector<int> debugLines;
@@ -50,6 +51,11 @@ private:
     inline double dist(Vec2d v1, Vec2d v2)
     {
         return sqrt((v1.x - v2.x)*(v1.x - v2.x) + (v1.y - v2.y)*(v1.y - v2.y));
+    }
+
+    inline double dist(Vec2d v1, Vec2d v2, double rayAngle)
+    {
+        return static_cast<double>(abs(v1.x - v2.x)) / cos(rayAngle);
     }
 
     inline bool hasWall(Vec2d coords)
@@ -72,40 +78,17 @@ private:
         return angle;
     }
 
-public:
-    Raytracer()
+    olc::Sprite renderScene(float elapsedTime)
     {
-        this->sAppName = "Raytracing test";
-    }
-    virtual ~Raytracer() {}
+        olc::Sprite scene(this->ScreenWidth(), this->ScreenHeight());
 
-    bool OnUserCreate() override
-    {
-        this->distPlane = (this->ScreenWidth() / 2.0) / tan(fov / 2.0);
-        this->rayAngleDelta = fov / static_cast<double>(this->ScreenWidth());
-        this->player.angle = radians(15.0);
-        this->player.x = 292.0;
-        this->player.y = 360.0;
-        return true;
-    }
-
-    bool OnUserUpdate(float fElapsedTime) override
-    {
-        olc::Sprite wallsSprite(this->ScreenWidth(), this->ScreenHeight());
-        olc::Sprite logsSprite(this->ScreenWidth(), this->ScreenHeight());
-
-        this->SetDrawTarget(&logsSprite);
-        this->FillRect(0, 0, this->ScreenWidth(), this->ScreenHeight(), olc::BLANK);
-        this->SetDrawTarget(nullptr);
-        this->FillRect(0, 0, this->ScreenWidth(), this->ScreenHeight(), olc::BLACK);
+        this->SetDrawTarget(&scene);
+        this->Clear(olc::BLANK);
 
         double rayAngle = player.angle - (fov / 2.0);
-
-        int textCounter = 0;
-
         for (uint16_t col = 0; col < this->ScreenWidth(); ++col)
         {
-            rayAngle = wrapAngle(rayAngle);
+            rayAngle = this->wrapAngle(rayAngle);
             Vec2d rayIntersect;
             Vec2d delta;
             Vec2d wallHorizontal;
@@ -194,33 +177,59 @@ public:
             {
                 double sliceHeight = (static_cast<double>(gridSize)/(distance*cos(rayAngle - player.angle))) * this->distPlane;
                 this->DrawLine(col, this->ScreenHeight()/2 - static_cast<uint16_t>(sliceHeight/2), col, this->ScreenHeight()/2 + static_cast<uint16_t>(sliceHeight/2), wallColor);
-
-                this->SetDrawTarget(&logsSprite);
-                if (std::any_of(debugLines.begin(), debugLines.end(), [col](int x){ return x == col; }))
-                    this->DrawString(0, 40+(textCounter++)*8, std::to_string(col)+std::string(":")+std::to_string(sliceHeight), olc::RED);
-                this->SetDrawTarget(nullptr);
             }
             rayAngle += this->rayAngleDelta;
         }
-        this->DrawString(0, 0, std::to_string(player.angle * 180.0/M_PI), olc::RED);
 
-        const double sensitivity = 2.0;
+        this->SetDrawTarget(nullptr);
+        return scene;
+    }
+
+    olc::Sprite renderDebug(float elapsedTime)
+    {
+        olc::Sprite debugInfo(this->ScreenWidth(), this->ScreenHeight());
+        this->SetDrawTarget(&debugInfo);
+        this->Clear(olc::BLANK);
+        uint16_t textCounter = 0;
+
+        this->DrawString(0, 8*textCounter++, std::to_string(1.0f/elapsedTime));
+        this->DrawString(0, 8*textCounter++, std::to_string(player.angle * 180.0/M_PI), olc::RED);
+        this->DrawString(0, 8*textCounter++, std::to_string(player.x), olc::RED);
+        this->DrawString(0, 8*textCounter++, std::to_string(player.y), olc::RED);
+
+        for (std::vector<int>::iterator it = debugLines.begin(); it != debugLines.end(); ++it)
+        {
+            this->DrawLine(*it, 0, *it, this->ScreenHeight(), olc::DARK_RED);
+            this->DrawString(0, 8*textCounter++, std::to_string(*it), olc::RED);
+        }
+
+        this->SetDrawTarget(nullptr);
+        return debugInfo;
+    }
+
+    void render(float elapsedTime)
+    {
+        this->SetPixelMode(olc::Pixel::Mode::MASK);
+        this->Clear(olc::BLACK);
+
+        olc::Sprite scene = this->renderScene(elapsedTime);
+        this->DrawSprite(0, 0, &scene);
+        olc::Sprite debugInfo = this->renderDebug(elapsedTime);
+        this->DrawSprite(0, 0, &debugInfo);
+    }
+
+    void handleInput(float elapsedTime)
+    {
+        const double turnSensitivity = 2.0;
         const double walkSensitivity = 120.0;
         if (this->GetKey(olc::Key::A).bHeld)
-            player.angle += sensitivity * fElapsedTime;
+            player.angle += turnSensitivity * elapsedTime;
         if (this->GetKey(olc::Key::D).bHeld)
-            player.angle -= sensitivity * fElapsedTime;
+            player.angle -= turnSensitivity * elapsedTime;
         player.angle = wrapAngle(player.angle);
 
-        double dirx = -cos(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
-        double diry = sin(player.angle - radians(180.0)) * walkSensitivity * fElapsedTime;
-        this->SetDrawTarget(&logsSprite);
-        this->DrawString(0, 8, std::to_string(dirx), olc::RED);
-        this->DrawString(0, 16, std::to_string(diry), olc::RED);
-        this->DrawString(0, 24, std::to_string(player.x), olc::RED);
-        this->DrawString(0, 32, std::to_string(player.y), olc::RED);
-        this->SetDrawTarget(nullptr);
-
+        double dirx = -cos(player.angle - radians(180.0)) * walkSensitivity * elapsedTime;
+        double diry = sin(player.angle - radians(180.0)) * walkSensitivity * elapsedTime;
 
         if (this->GetKey(olc::Key::W).bHeld)
         {
@@ -241,18 +250,29 @@ public:
                 debugLines.push_back(this->GetMouseX());
             else debugLines.erase(dupMouseX);
         }
+    }
 
-        int i = 0;
-        for (std::vector<int>::iterator it = debugLines.begin(); it != debugLines.end(); ++it, ++i)
-        {
-            this->DrawLine(*it, 0, *it, this->ScreenHeight()-1, olc::DARK_RED);
-        }
+public:
+    Raytracer()
+    {
+        this->sAppName = "Raytracing test";
+    }
+    virtual ~Raytracer() {}
 
+    bool OnUserCreate() override
+    {
+        this->distPlane = (this->ScreenWidth() / 2.0) / tan(fov / 2.0);
+        this->rayAngleDelta = fov / static_cast<double>(this->ScreenWidth());
+        this->player.angle = radians(15.0);
+        this->player.x = 292.0;
+        this->player.y = 360.0;
+        return true;
+    }
 
-        this->SetPixelMode(olc::Pixel::ALPHA);
-        this->DrawSprite(0, 0, &logsSprite);
-        this->SetPixelMode(olc::Pixel::NORMAL);
-
+    bool OnUserUpdate(float fElapsedTime) override
+    {
+        this->render(fElapsedTime);
+        this->handleInput(fElapsedTime);
         return true;
     }
 
@@ -267,7 +287,7 @@ public:
 int main()
 {
     Raytracer demo;
-    if (demo.Construct(160, 100, 1, 1))
+    if (demo.Construct(320, 200, 1, 1))
         demo.Start();
     return 0;
 }

@@ -9,6 +9,14 @@ struct Vec2d
     public:
         int32_t x;
         int32_t y;
+
+        Vec2d() : x(0), y(0) {}
+        Vec2d(int32_t _x, int32_t _y) : x(_x), y(_y) {}
+
+    bool operator==(const Vec2d& other)
+    {
+        return this->x == other.x && this->y == other.y;
+    }
 };
 
 class Player
@@ -18,6 +26,8 @@ public:
     double x;
     double y;
 };
+
+enum WALLSIDE { LEFT, RIGHT };
 
 class Raytracer : public olc::PixelGameEngine
 {
@@ -60,8 +70,8 @@ private:
 
     inline bool hasWall(Vec2d coords)
     {
-        return coords.x/64 < 10 && coords.y/64 < 10 && coords.x/64 >= 0 && coords.y/64 >= 0
-                && map[coords.x/64][coords.y/64] != 0;
+        return coords.x/gridSize < 10 && coords.y/gridSize < 10 && coords.x/gridSize >= 0 && coords.y/gridSize >= 0
+                && map[coords.x/gridSize][coords.y/gridSize] != 0;
     }
 
     inline double radians(double degrees)
@@ -78,6 +88,114 @@ private:
         return angle;
     }
 
+    bool isNearZeroAngle(double angle)
+    {
+        const double eps = 0.001;
+        auto isNear = [eps, angle](double near)
+        {
+            return fabs(angle - near) < eps;
+        };
+        return isNear(0) ||
+            isNear(M_PI_2) ||
+            isNear(M_PI) ||
+            isNear(M_PI+M_PI_2) ||
+            isNear(M_PI+M_PI);
+    }
+
+    inline bool isOutOfBounds(Vec2d pos)
+    {
+        return pos.x < 0 ||
+               pos.y < 0 ||
+               pos.x >= 10*gridSize ||
+               pos.y >= 10*gridSize;
+    }
+
+    Vec2d castRayH(double angle, double x, double y)
+    {
+        Vec2d rayIntersect;
+        Vec2d delta;
+
+        // horizontal gridlines
+        if (angle < radians(180.0))
+            rayIntersect.y = (static_cast<int32_t>(y) / gridSize) * gridSize - 1;
+        else
+            rayIntersect.y = (static_cast<int32_t>(y) / gridSize) * gridSize + gridSize;
+        rayIntersect.x = static_cast<int32_t>(x + static_cast<double>(y - rayIntersect.y) / tan(angle));
+
+        if (angle < radians(180.0))
+            delta.y = -gridSize;
+        else delta.y = gridSize;
+
+        if (angle >= radians(90.0) && angle < radians(270.0))
+            delta.x = -abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(angle)));
+        else delta.x = abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(angle)));
+
+        while (!hasWall(rayIntersect) && !isOutOfBounds(rayIntersect))
+        {
+            rayIntersect.x += delta.x;
+            rayIntersect.y += delta.y;
+        }
+
+        return rayIntersect;
+    }
+
+    Vec2d castRayV(double angle, double x, double y)
+    {
+        Vec2d rayIntersect;
+        Vec2d delta;
+        // vertical gridlines
+        if (angle >= radians(90.0) && angle < radians(270.0))
+            rayIntersect.x = (static_cast<int32_t>(x)/gridSize) * gridSize - 1;
+        else rayIntersect.x = (static_cast<int32_t>(x)/gridSize) * gridSize + gridSize;
+        rayIntersect.y = static_cast<int32_t>(y + static_cast<double>(x - rayIntersect.x) * tan(angle));
+
+        if (angle >= radians(90.0) && angle < radians(270.0))
+            delta.x = -gridSize;
+        else delta.x = gridSize;
+
+        if (angle < radians(180.0))
+            delta.y = -abs(static_cast<int32_t>(gridSize * tan(angle)));
+        else delta.y = abs(static_cast<int32_t>(gridSize * tan(angle)));
+
+        while (!hasWall(rayIntersect) && !isOutOfBounds(rayIntersect))
+        {
+            rayIntersect.x += delta.x;
+            rayIntersect.y += delta.y;
+        }
+
+        return rayIntersect;
+    }
+
+    std::pair<double, WALLSIDE> castRay(double angle, double x, double y, double rayDelta)
+    {
+        Vec2d IntersectH = castRayH(angle, x, y);
+        Vec2d IntersectV = castRayV(angle, x, y);
+        double distanceH = dist(Vec2d(x, y), IntersectH);
+        double distanceV = dist(Vec2d(x, y), IntersectV);
+        double distance;
+        WALLSIDE wallSide;
+
+        if (IntersectH == IntersectV)
+        {
+            distance = dist(Vec2d(x, y), IntersectH);
+            wallSide = this->castRay(angle - rayDelta, x, y, rayDelta).second; // cast ray a bit to the left to determine the correct color
+            //rayAngleZeroFix = -rayAngleDelta;
+        }
+        else if ((distanceH > distanceV && !isOutOfBounds(IntersectV)) || isOutOfBounds(IntersectH))
+        {
+            distance = distanceV;
+            wallSide = WALLSIDE::LEFT;
+        }
+        else if (!isOutOfBounds(IntersectH))
+        {
+            distance = distanceH;
+            wallSide = WALLSIDE::RIGHT;
+        }
+        else
+            distance = std::numeric_limits<double>::infinity();
+        return std::pair<double, WALLSIDE>(distance, wallSide);
+    }
+
     olc::Sprite renderScene(float elapsedTime)
     {
         olc::Sprite scene(this->ScreenWidth(), this->ScreenHeight());
@@ -88,94 +206,21 @@ private:
         double rayAngle = player.angle - (fov / 2.0);
         for (uint16_t col = 0; col < this->ScreenWidth(); ++col)
         {
+            double rayAngleZeroFix = 0.0;
             rayAngle = this->wrapAngle(rayAngle);
-            Vec2d rayIntersect;
-            Vec2d delta;
-            Vec2d wallHorizontal;
-            Vec2d wallVertical;
-
-            // horizontal gridlines
-            if (rayAngle < radians(180.0))
-                rayIntersect.y = (static_cast<int32_t>(player.y) / 64) * 64 - 1;
-            else
-                rayIntersect.y = (static_cast<int32_t>(player.y) / 64) * 64 + 64;
-            rayIntersect.x = static_cast<int32_t>(player.x + static_cast<double>(player.y - rayIntersect.y) / tan(rayAngle));
-
-            if (rayAngle < radians(180.0))
-                delta.y = -gridSize;
-            else delta.y = gridSize;
-
-            if (rayAngle >= radians(90.0) && rayAngle < radians(270.0))
-                delta.x = -abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(rayAngle)));
-            else delta.x = abs(static_cast<int32_t>(static_cast<double>(gridSize) / tan(rayAngle)));
-
-            bool outOfBoundsH = false;
-            while (!hasWall(rayIntersect)
-                   && rayIntersect.x >= 0
-                   && rayIntersect.y >= 0
-                   && rayIntersect.x < 10*64
-                   && rayIntersect.y < 10*64)
+            if (isNearZeroAngle(rayAngle))
             {
-                rayIntersect.x += delta.x;
-                rayIntersect.y += delta.y;
-            }
-            if (rayIntersect.x < 0 || rayIntersect.y < 0 || rayIntersect.x >= 10*64 || rayIntersect.y >= 10*64)
-                outOfBoundsH = true;
-            wallHorizontal = rayIntersect;
-
-            // vertical gridlines
-            if (rayAngle >= radians(90.0) && rayAngle < radians(270.0))
-                rayIntersect.x = (static_cast<int32_t>(player.x)/64) * 64 - 1;
-            else rayIntersect.x = (static_cast<int32_t>(player.x)/64) * 64 + 64;
-            rayIntersect.y = static_cast<int32_t>(player.y + static_cast<double>(player.x - rayIntersect.x) * tan(rayAngle));
-
-            if (rayAngle >= radians(90.0) && rayAngle < radians(270.0))
-                delta.x = -gridSize;
-            else delta.x = gridSize;
-
-            if (rayAngle < radians(180.0))
-                delta.y = -abs(static_cast<int32_t>(64.0 * tan(rayAngle)));
-            else delta.y = abs(static_cast<int32_t>(64.0 * tan(rayAngle)));
-
-            bool outOfBoundsV = false;
-            while (!hasWall(rayIntersect)
-                   && rayIntersect.x >= 0
-                   && rayIntersect.y >= 0
-                   && rayIntersect.x < 10*64
-                   && rayIntersect.y < 10*64)
-            {
-                rayIntersect.x += delta.x;
-                rayIntersect.y += delta.y;
+                rayAngleZeroFix = -rayAngleDelta;
             }
 
-            if (rayIntersect.x < 0 || rayIntersect.y < 0 || rayIntersect.x >= 10*64 || rayIntersect.y >= 10*64)
-                outOfBoundsV = true;
-            wallVertical = rayIntersect;
-
-            Vec2d playerpos;
-            playerpos.x = player.x;
-            playerpos.y = player.y;
-            double distH = dist(playerpos, wallHorizontal);
-            double distV = dist(playerpos, wallVertical);
-            double distance;
-            olc::Pixel wallColor;
-
-            if (distH > distV && !outOfBoundsV)
-            {
-                distance = distV;
-                wallColor = olc::GREEN;
-            }
-            else if (!outOfBoundsH)
-            {
-                distance = distH;
-                wallColor = olc::DARK_GREEN;
-            }
-            else
-                distance = std::numeric_limits<double>::infinity();
+            std::pair<double, WALLSIDE> ray = castRay(rayAngle, player.x, player.y, rayAngleDelta);
+            double distance = ray.first;
+            WALLSIDE wallSide = ray.second;
+            olc::Pixel wallColor = wallSide == WALLSIDE::LEFT ? olc::GREEN : olc::DARK_GREEN;
 
             if (distance != std::numeric_limits<double>::infinity())
             {
-                double sliceHeight = (static_cast<double>(gridSize)/(distance*cos(rayAngle - player.angle))) * this->distPlane;
+                double sliceHeight = (static_cast<double>(gridSize)/(distance*cos(wrapAngle(rayAngle + rayAngleZeroFix - player.angle)))) * this->distPlane;
                 this->DrawLine(col, this->ScreenHeight()/2 - static_cast<uint16_t>(sliceHeight/2), col, this->ScreenHeight()/2 + static_cast<uint16_t>(sliceHeight/2), wallColor);
             }
             rayAngle += this->rayAngleDelta;
@@ -220,12 +265,12 @@ private:
 
     void handleInput(float elapsedTime)
     {
-        const double turnSensitivity = 2.0;
+        const double turnSensitivity = 1.5;
         const double walkSensitivity = 120.0;
         if (this->GetKey(olc::Key::A).bHeld)
-            player.angle += turnSensitivity * elapsedTime;
-        if (this->GetKey(olc::Key::D).bHeld)
             player.angle -= turnSensitivity * elapsedTime;
+        if (this->GetKey(olc::Key::D).bHeld)
+            player.angle += turnSensitivity * elapsedTime;
         player.angle = wrapAngle(player.angle);
 
         double dirx = -cos(player.angle - radians(180.0)) * walkSensitivity * elapsedTime;
@@ -263,9 +308,9 @@ public:
     {
         this->distPlane = (this->ScreenWidth() / 2.0) / tan(fov / 2.0);
         this->rayAngleDelta = fov / static_cast<double>(this->ScreenWidth());
-        this->player.angle = radians(15.0);
-        this->player.x = 292.0;
-        this->player.y = 360.0;
+        this->player.angle = radians(0.378);
+        this->player.x = 412.44;
+        this->player.y = 393.67;
         return true;
     }
 

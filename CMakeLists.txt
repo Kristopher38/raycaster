@@ -4,6 +4,13 @@ project(raycaster LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "-lX11 -lGL -lpthread -lpng")
-
+if (UNIX)
+	set(CMAKE_CXX_FLAGS "-lX11 -lGL -lpthread -lpng")
+endif (UNIX)
 add_executable(raycaster main.cpp)
+
+if(WIN32)
+	target_link_libraries(raycaster gdi32.lib)
+	target_link_libraries(raycaster opengl32.lib)
+	target_link_libraries(raycaster gdiplus.lib)
+endif (WIN32)

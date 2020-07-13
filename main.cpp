@@ -106,21 +106,12 @@ private:
 
     olc::Sprite renderMap(float elapsedTime, double scale)
     {
-        olc::Sprite mapView = this->newLayer();//this->newLayer(map.size() * scale, map[0].size() * scale);
+        olc::Sprite mapView = this->newLayer(map.size() * scale, map[0].size() * scale);
+        olc::Sprite camera = this->newLayer(map.size() * scale, map[0].size() * scale);
         Vec2d cameraPlane = this->getCameraPlane(player.dir);
+        Vec2d curTile(std::floor(player.pos.x) - player.pos.x, std::floor(player.pos.y) - player.pos.y);
 
-        olc::Sprite debug = this->newLayer();
-        this->SetDrawTarget(&debug);
-        this->DrawString(202, 0, std::to_string(player.pos.x));
-        this->DrawString(202, 8, std::to_string(player.pos.y));
-        this->DrawString(202, 16, std::to_string(player.dir.x));
-        this->DrawString(202, 24, std::to_string(player.dir.y));
-
-        olc::Sprite camera = this->newLayer();
         this->SetDrawTarget(&camera);
-        Vec2d curTile;
-        curTile.x = std::floor(player.pos.x) - player.pos.x;
-        curTile.y = std::floor(player.pos.y) - player.pos.y;
         this->FillRect((player.pos + curTile) * scale + Vec2d(1.0, 1.0), Vec2d(scale, scale) - Vec2d(1.0, 1.0), olc::GREY);
         this->FillCircle(player.pos * scale, 0.25 * scale, olc::RED);
         this->DrawLine(player.pos * scale, (player.pos+player.dir) * scale, olc::YELLOW);
@@ -129,97 +120,8 @@ private:
         this->DrawLine(player.pos * scale, (player.pos+player.dir-cameraPlane) * scale, olc::DARK_MAGENTA);
         this->DrawLine(player.pos * scale, (player.pos+player.dir+cameraPlane) * scale, olc::DARK_MAGENTA);
 
-        for (int32_t col = 321; col < 322 /*this->ScreenWidth()*/; ++col)
-        {
-            Vec2d rayDir = player.dir + cameraPlane * (2 * static_cast<double>(col - 321) / static_cast<double>(this->ScreenWidth() - 321) - 1);
-            this->DrawLine(player.pos * scale, (player.pos + rayDir.norm() * (Vec2d(map.size(), map[0].size()) - player.pos).mag()) * scale, olc::BLUE);
-
-            Vec2d rayStepDist;
-            // scale normalized rayDir by a factor that first makes x component equal to 1
-            rayStepDist.x = (rayDir.norm() * 1 / rayDir.x).mag();
-            // ...and second y component equal to 1, and compute their magnitudes
-            rayStepDist.y = (rayDir.norm() * 1 / rayDir.y).mag();
-
-            this->SetDrawTarget(&debug);
-//            this->DrawString(202, 32, std::to_string(rayStepDist.x));
-//            this->DrawString(202, 40, std::to_string(rayStepDist.y));
-
-
-
-            // based on the direction of the ray, calculate initial distances to respective x (vertical) and y (horizontal) grid intersections
-            Vec2d curRayDist;
-            if (rayDir.x > 0)
-                curRayDist.x = (std::ceil(player.pos.x) - player.pos.x) * rayStepDist.x;
-            else
-                curRayDist.x = (player.pos.x - std::floor(player.pos.x)) * rayStepDist.x;
-            if (rayDir.y > 0)
-                curRayDist.y = (std::ceil(player.pos.y) - player.pos.y) * rayStepDist.y;
-            else
-                curRayDist.y = (player.pos.y - std::floor(player.pos.y)) * rayStepDist.y;
-
-            Vec2i mapPos;
-            mapPos.x = static_cast<uint32_t>(player.pos.x);
-            mapPos.y = static_cast<uint32_t>(player.pos.y);
-            Vec2i mapStep;
-            mapStep.x = std::signbit(rayDir.x) ? -1 : 1;
-            mapStep.y = std::signbit(rayDir.y) ? -1 : 1;
-
-            WALL_SIDE side = WALL_SIDE::NONE;
-            try
-            {
-                while (!hasWall(mapPos))
-                {
-                    if (curRayDist.x < curRayDist.y)
-                    {
-                        curRayDist.x += rayStepDist.x;
-                        mapPos.x += mapStep.x;
-                        side = WALL_SIDE::VERTICAL;
-                    }
-                    else
-                    {
-                        curRayDist.y += rayStepDist.y;
-                        mapPos.y += mapStep.y;
-                        side = WALL_SIDE::HORIZONTAL;
-                    }
-                    this->FillRect((mapPos * scale) + Vec2i(1, 1), Vec2d(scale, scale) - Vec2d(1.0, 1.0), olc::Pixel(43, 169, 252)); // light blue
-                }
-            }
-            catch (std::out_of_range& e)
-            {
-                side = WALL_SIDE::NONE;
-            }
-
-            this->DrawString(0, 48, std::to_string(curRayDist.mag()));
-            Vec2d hitPos = (player.pos + rayDir.norm()) * curRayDist.mag();
-            this->FillCircle(hitPos * scale, 0.1 * scale);
-
-            //Vec2d hitPos = player.pos + curRayDist;
-            //double hitDist = dist(player.pos, curRayDist);
-
-            olc::Pixel wallColor;
-            double hitDist;
-            switch (side)
-            {
-                case WALL_SIDE::NONE:
-                    wallColor = olc::NONE;
-                    hitDist = std::numeric_limits<double>::infinity();
-                    break;
-                case WALL_SIDE::VERTICAL:
-                    wallColor = olc::DARK_GREEN;
-                    hitDist = hitPos.mag();// (mapPos.x - player.pos.x + (1 - mapStep.x) / 2) / rayDir.x;
-                    break;
-                case WALL_SIDE::HORIZONTAL:
-                    wallColor = olc::GREEN;
-                    hitDist = hitPos.mag();//(mapPos.y - player.pos.y + (1 - mapStep.y) / 2) / rayDir.y;
-                    break;
-            }
-
-            int32_t height = this->ScreenHeight() / hitDist;
-            this->SetDrawTarget(&mapView);
-            this->DrawLine(col, this->ScreenHeight()/2 - height/2, col, this->ScreenHeight()/2 + height/2, wallColor);
-        }
-        olc::Sprite airs = this->newLayer();
-        olc::Sprite walls = this->newLayer();
+        olc::Sprite airs = this->newLayer(map.size() * scale, map[0].size() * scale);
+        olc::Sprite walls = this->newLayer(map.size() * scale, map[0].size() * scale);
         for (int32_t row = 0; row < map.size(); ++row)
         {
             for (int32_t col = 0; col < map[row].size(); ++col)
@@ -240,101 +142,112 @@ private:
         this->SetDrawTarget(&mapView);
         this->DrawSprite(0, 0, &airs);
         this->DrawSprite(0, 0, &walls);
-        this->DrawSprite(0, 0, &debug);
         this->DrawSprite(0, 0, &camera);
         this->SetDrawTarget(nullptr);
 
         return mapView;
     }
 
+    olc::Sprite renderDebug(float elapsedTime)
+    {
+        //        olc::Sprite debug = this->newLayer();
+        //        this->SetDrawTarget(&debug);
+        //        this->DrawString(202, 0, std::to_string(player.pos.x));
+        //        this->DrawString(202, 8, std::to_string(player.pos.y));
+        //        this->DrawString(202, 16, std::to_string(player.dir.x));
+        //        this->DrawString(202, 24, std::to_string(player.dir.y));
+
+
+    }
+
     olc::Sprite renderScene(float elapsedTime)
     {
         olc::Sprite scene = this->newLayer();
+        olc::Sprite mapView = renderMap(elapsedTime, 10);
+        olc::Sprite walls = this->newLayer();
 
 
-        olc::Sprite mapView = renderMap(elapsedTime, 20);
-        this->SetDrawTarget(&scene);
-        //this->DrawSprite(0, 0, &debug);
-        this->DrawSprite(0, 0, &mapView);
 
         Vec2d cameraPlane = this->getCameraPlane(player.dir);
 
+        for (int32_t col = 0; col < this->ScreenWidth(); ++col)
+        {
+            Vec2d rayDir = player.dir + cameraPlane * (2 * static_cast<double>(col) / static_cast<double>(this->ScreenWidth()) - 1);
+            Vec2d rayStepDist;
+            // scale normalized rayDir by a factor that first makes x component equal to 1
+            rayStepDist.x = (rayDir.norm() * 1 / rayDir.x).mag();
+            // ...and second y component equal to 1, and compute their magnitudes
+            rayStepDist.y = (rayDir.norm() * 1 / rayDir.y).mag();
+            // based on the direction of the ray, calculate initial distances to respective x (vertical) and y (horizontal) grid intersections
 
+            Vec2d curRayDist;
+            if (rayDir.x > 0)
+                curRayDist.x = (std::ceil(player.pos.x) - player.pos.x) * rayStepDist.x;
+            else
+                curRayDist.x = (player.pos.x - std::floor(player.pos.x)) * rayStepDist.x;
+            if (rayDir.y > 0)
+                curRayDist.y = (std::ceil(player.pos.y) - player.pos.y) * rayStepDist.y;
+            else
+                curRayDist.y = (player.pos.y - std::floor(player.pos.y)) * rayStepDist.y;
 
-//        for (int32_t col = 0; col < this->ScreenWidth(); ++col)
-//        {
-//            // ray direction is the sum of direction vector and plane vector multiplied by a coefficient
-//            // in range <-1; 1> calculated from current column to get current point (direction) on the plane vector
-//            Vec2d rayDir = player.dir + plane * (2 * col / this->ScreenWidth() - 1);
+            Vec2i mapPos;
+            mapPos.x = static_cast<uint32_t>(player.pos.x);
+            mapPos.y = static_cast<uint32_t>(player.pos.y);
+            Vec2i mapStep;
+            mapStep.x = std::signbit(rayDir.x) ? -1 : 1;
+            mapStep.y = std::signbit(rayDir.y) ? -1 : 1;
 
-//            Vec2d rayStepDist;
-//            // scale normalized rayDir by a factor that first makes x component equal to 1
-//            rayStepDist.x = std::abs(1 / rayDir.x);//(rayDir.norm() * 1 / rayDir.x).mag();
-//            // ...and second y component equal to 1, and compute their magnitudes
-//            rayStepDist.y = std::abs(1 / rayDir.y);//(rayDir.norm() * 1 / rayDir.y).mag();
+            WALL_SIDE side = WALL_SIDE::NONE;
+            try
+            {
+                while (!this->hasWall(mapPos))
+                {
+                    if (curRayDist.x < curRayDist.y)
+                    {
+                        curRayDist.x += rayStepDist.x;
+                        mapPos.x += mapStep.x;
+                        side = WALL_SIDE::VERTICAL;
+                    }
+                    else
+                    {
+                        curRayDist.y += rayStepDist.y;
+                        mapPos.y += mapStep.y;
+                        side = WALL_SIDE::HORIZONTAL;
+                    }
+                    //this->FillRect((mapPos * scale) + Vec2i(1, 1), Vec2d(scale, scale) - Vec2d(1.0, 1.0), olc::Pixel(43, 169, 252)); // light blue
+                }
+            }
+            catch (std::out_of_range& e)
+            {
+                side = WALL_SIDE::NONE;
+            }
 
-//            Vec2d curRayDist;
-//            // based on the direction of the ray, calculate initial distances to respective x (vertical) and y (horizontal) grid intersections
-//            if (rayDir.x > 0)
-//                curRayDist.x = (std::ceil(player.pos.x) - player.pos.x) * rayStepDist.x;
-//            else
-//                curRayDist.x = (player.pos.x - std::floor(player.pos.x)) * rayStepDist.x;
-//            if (rayDir.y > 0)
-//                curRayDist.y = (std::ceil(player.pos.y) - player.pos.y) * rayStepDist.y;
-//            else
-//                curRayDist.y = (player.pos.y - std::floor(player.pos.y)) * rayStepDist.y;
+            olc::Pixel wallColor;
+            double hitDist;
+            switch (side)
+            {
+                case WALL_SIDE::NONE:
+                    wallColor = olc::NONE;
+                    hitDist = std::numeric_limits<double>::infinity();
+                    break;
+                case WALL_SIDE::VERTICAL:
+                    wallColor = olc::DARK_GREEN;
+                    hitDist = (mapPos.x - player.pos.x + (std::signbit(rayDir.x) ? 1 : 0)) / rayDir.x;
+                    break;
+                case WALL_SIDE::HORIZONTAL:
+                    wallColor = olc::GREEN;
+                    hitDist = (mapPos.y - player.pos.y + (std::signbit(rayDir.y) ? 1 : 0)) / rayDir.y;
+                    break;
+            }
 
-//            Vec2i mapPos;
-//            mapPos.x = static_cast<uint32_t>(player.pos.x);
-//            mapPos.y = static_cast<uint32_t>(player.pos.y);
-//            Vec2i mapStep;
-//            mapStep.x = std::signbit(rayDir.x) ? -1 : 1;
-//            mapStep.y = std::signbit(rayDir.y) ? -1 : 1;
+            int32_t height = this->ScreenHeight() / hitDist;
+            this->DrawLine(col, this->ScreenHeight()/2 - height/2, col, this->ScreenHeight()/2 + height/2, wallColor);
+        }
 
-//            WALL_SIDE side = WALL_SIDE::NONE;
-//            while (!hasWall(mapPos))
-//            {
-//                if (curRayDist.x < curRayDist.y)
-//                {
-//                    curRayDist.x += rayStepDist.x;
-//                    mapPos.x += mapStep.x;
-//                    side = WALL_SIDE::VERTICAL;
-//                }
-//                else
-//                {
-//                    curRayDist.y += rayStepDist.y;
-//                    mapPos.y += mapStep.y;
-//                    side = WALL_SIDE::HORIZONTAL;
-//                }
-//            }
-
-//            //Vec2d hitPos = player.pos + rayDir.norm() * curRayDist.mag();
-
-//            //Vec2d hitPos = player.pos + curRayDist;
-//            //double hitDist = dist(player.pos, curRayDist);
-
-//            olc::Pixel wallColor;
-//            double hitDist;
-//            switch (side)
-//            {
-//                case WALL_SIDE::NONE:
-//                    wallColor = olc::NONE;
-//                    hitDist = 0.0f;
-//                    break;
-//                case WALL_SIDE::VERTICAL:
-//                    wallColor = olc::DARK_GREEN;
-//                    hitDist = (mapPos.x - player.pos.x + (1 - mapStep.x) / 2) / rayDir.x;
-//                    break;
-//                case WALL_SIDE::HORIZONTAL:
-//                    wallColor = olc::GREEN;
-//                    hitDist = (mapPos.y - player.pos.y + (1 - mapStep.y) / 2) / rayDir.y;
-//                    break;
-//            }
-
-//            int32_t height = this->ScreenHeight() / hitDist;
-
-//            this->DrawLine(col, this->ScreenHeight()/2 - height/2, col, this->ScreenHeight()/2 + height/2, wallColor);
-//        }
+        this->SetDrawTarget(&scene);
+        //this->DrawSprite(0, 0, &debug);
+        this->DrawSprite(0, 0, &walls);
+        this->DrawSprite(0, 0, &mapView);
 
         this->SetDrawTarget(nullptr);
         return scene;
@@ -373,27 +286,32 @@ private:
 //        this->DrawSprite(0, 0, &debugInfo);
     }
 
+    bool isInMapRange(Vec2i vec)
+    {
+        return vec.y >= 0 && vec.y < map.size() && vec.x >= 0 and vec.x < map[0].size();
+    }
 
+    void movePlayer(double amount)
+    {
+        Vec2d newPos = player.pos + player.dir * amount;
+        Vec2i newMapPos(static_cast<int64_t>(newPos.x), static_cast<int64_t>(newPos.y));
+        if (isInMapRange(newMapPos) && map[newMapPos.y][newMapPos.x] == 0)
+            player.pos = newPos;
+    }
 
     void handleInput(float elapsedTime)
     {
         const double turnSensitivity = 2.0;
         const double walkSensitivity = 2.5;
         if (this->GetKey(olc::Key::A).bHeld)
-        {
             player.dir = rotate(player.dir, -turnSensitivity * elapsedTime);
-            //plane = rotate(plane, -turnSensitivity * elapsedTime);
-        }
         if (this->GetKey(olc::Key::D).bHeld)
-        {
             player.dir = rotate(player.dir, turnSensitivity * elapsedTime);
-            //plane = rotate(plane, turnSensitivity * elapsedTime);
-        }
 
         if (this->GetKey(olc::Key::W).bHeld)
-            player.pos += player.dir * walkSensitivity * elapsedTime;
+            movePlayer(walkSensitivity * elapsedTime);
         if (this->GetKey(olc::Key::S).bHeld)
-            player.pos -= player.dir * walkSensitivity * elapsedTime;
+            movePlayer(-walkSensitivity * elapsedTime);
 
 //        if (this->GetMouse(0).bPressed)
 //        {

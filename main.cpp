@@ -4,8 +4,10 @@
 #include <utility>
 #include <vector>
 #include <limits>
+#include <iostream>
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
+#include "json.hpp"
 
 typedef olc::v2d_generic<double> Vec2d;
 typedef olc::v2d_generic<int64_t> Vec2i;
@@ -24,28 +26,13 @@ enum WALL_SIDE { NONE, VERTICAL, HORIZONTAL };
 class Raytracer : public olc::PixelGameEngine
 {
 private:
+    nlohmann::json mapData;
+    std::vector<std::unique_ptr<olc::Sprite>> tiles;
     const double tileSize = 1.0f;
     const double fov = M_PI_2 * 2.0f/3.0f; // 60 degrees
-    Player player = Player(Vec2d(5.3, 5.7), Vec2d(-1, 0));
+    Player player = Player(Vec2d(4.3, 5.7), Vec2d(-1, 0));
 
-    /*      180deg
-     *
-     * 90deg       270deg
-     *
-     *       0deg
-     */
-    std::array<std::array<uint8_t, 10>, 10> map = {{
-        {{1, 1, 1, 1, 1, 0, 1, 1, 1, 1}},
-        {{1, 0, 0, 0, 0, 0, 1, 1, 0, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 1, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 1, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-        {{1, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-        {{1, 0, 0, 1, 1, 0, 0, 0, 0, 1}},
-        {{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
-    }};
+    std::vector<std::vector<int32_t>> map;
     std::vector<int> debugLines;
 
     inline double dist(Vec2d v1, Vec2d v2)
@@ -60,7 +47,7 @@ private:
 
     inline bool hasWall(Vec2i coords)
     {
-        return map.at(coords.y).at(coords.x) != 0;
+        return mapData["layers"][0]["data"][coords.y * 10 + coords.x] != 0; //map.at(coords.y).at(coords.x) != 0;
     }
 
     inline double radians(double degrees)
@@ -148,17 +135,15 @@ private:
         return mapView;
     }
 
-    olc::Sprite renderDebug(float elapsedTime)
-    {
-        //        olc::Sprite debug = this->newLayer();
-        //        this->SetDrawTarget(&debug);
-        //        this->DrawString(202, 0, std::to_string(player.pos.x));
-        //        this->DrawString(202, 8, std::to_string(player.pos.y));
-        //        this->DrawString(202, 16, std::to_string(player.dir.x));
-        //        this->DrawString(202, 24, std::to_string(player.dir.y));
-
-
-    }
+//    olc::Sprite renderDebug(float elapsedTime)
+//    {
+//        olc::Sprite debug = this->newLayer();
+//        this->SetDrawTarget(&debug);
+//        this->DrawString(202, 0, std::to_string(player.pos.x));
+//        this->DrawString(202, 8, std::to_string(player.pos.y));
+//        this->DrawString(202, 16, std::to_string(player.dir.x));
+//        this->DrawString(202, 24, std::to_string(player.dir.y));
+//    }
 
     olc::Sprite renderScene(float elapsedTime)
     {
@@ -173,6 +158,9 @@ private:
         for (int32_t col = 0; col < this->ScreenWidth(); ++col)
         {
             Vec2d rayDir = player.dir + cameraPlane * (2 * static_cast<double>(col) / static_cast<double>(this->ScreenWidth()) - 1);
+            // make sure division by 0 never happens
+            rayDir.x = rayDir.x == 0 ? 1e-10 : rayDir.x;
+            rayDir.y = rayDir.y == 0 ? 1e-10 : rayDir.y;
             Vec2d rayStepDist;
             // scale normalized rayDir by a factor that first makes x component equal to 1
             rayStepDist.x = (rayDir.norm() * 1 / rayDir.x).mag();
@@ -222,26 +210,46 @@ private:
                 side = WALL_SIDE::NONE;
             }
 
-            olc::Pixel wallColor;
+            //olc::Pixel wallColor;
             double hitDist;
+            double wallHitPos;
             switch (side)
             {
                 case WALL_SIDE::NONE:
-                    wallColor = olc::NONE;
+                    //wallColor = olc::NONE;
                     hitDist = std::numeric_limits<double>::infinity();
+                    wallHitPos = 0.0f;
                     break;
                 case WALL_SIDE::VERTICAL:
-                    wallColor = olc::DARK_GREEN;
+                    //wallColor = olc::DARK_GREEN;
                     hitDist = (mapPos.x - player.pos.x + (std::signbit(rayDir.x) ? 1 : 0)) / rayDir.x;
+                    wallHitPos = player.pos.y + hitDist * rayDir.y;
                     break;
                 case WALL_SIDE::HORIZONTAL:
-                    wallColor = olc::GREEN;
+                    //wallColor = olc::GREEN;
                     hitDist = (mapPos.y - player.pos.y + (std::signbit(rayDir.y) ? 1 : 0)) / rayDir.y;
+                    wallHitPos = player.pos.x + hitDist * rayDir.x;
                     break;
             }
+            wallHitPos -= std::floor(wallHitPos);
+            int32_t tileIndex = this->mapData["layers"][0]["data"][mapPos.y * 10 + mapPos.x].get<int32_t>() - 1;
+            double textureHeight = static_cast<double>(this->tiles[tileIndex]->height);
+            double textureWidth = static_cast<double>(this->tiles[tileIndex]->width);
+            double lineHeight = static_cast<double>(this->ScreenHeight()) / hitDist;
 
-            int32_t height = this->ScreenHeight() / hitDist;
-            this->DrawLine(col, this->ScreenHeight()/2 - height/2, col, this->ScreenHeight()/2 + height/2, wallColor);
+            Vec2d texturePos(wallHitPos * textureHeight, 0.0f);
+            if (side == WALL_SIDE::VERTICAL && rayDir.x > 0)
+                texturePos.x = textureWidth - texturePos.x - 1;
+            if (side == WALL_SIDE::HORIZONTAL && rayDir.y < 0)
+                texturePos.x = textureWidth - texturePos.x - 1;
+            double textureStep = textureHeight / lineHeight;
+
+            for (int32_t row = this->ScreenHeight() / 2 - lineHeight / 2; row < this->ScreenHeight()/2 + lineHeight/2; ++row)
+            {
+                olc::Pixel p = this->tiles[tileIndex]->GetPixel(texturePos);
+                texturePos.y += textureStep;
+                this->Draw(col, row, p);
+            }
         }
 
         this->SetDrawTarget(&scene);
@@ -332,6 +340,19 @@ public:
 
     bool OnUserCreate() override
     {
+        std::ifstream mapFile("testmap.json");
+        mapFile>>this->mapData;
+        std::size_t width = this->mapData["layers"][0]["width"];
+        std::size_t height = this->mapData["layers"][0]["height"];
+        std::vector<int32_t> mapGrid = this->mapData["layers"][0]["data"];
+        for (std::size_t i = 0; i < mapGrid.size(); i += width)
+        {
+            this->map.push_back(std::vector<int32_t>(mapGrid.begin() + i, mapGrid.begin() + i + width));
+        }
+        nlohmann::json tileData = this->mapData["tilesets"][0]["tiles"];
+        this->tiles.reserve(tileData.size());
+        for (auto& tile : tileData)
+            this->tiles.push_back(std::make_unique<olc::Sprite>(tile["image"].get<std::string>()));
         return true;
     }
 
@@ -339,6 +360,7 @@ public:
     {
         this->render(fElapsedTime);
         this->handleInput(fElapsedTime);
+        this->SetDrawTarget(nullptr);
         return true;
     }
 

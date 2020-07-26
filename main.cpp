@@ -52,8 +52,8 @@ private:
 
     olc::Sprite renderMap(float elapsedTime, double scale)
     {
-        olc::Sprite mapView = this->newLayer(map.height * scale, map.width * scale);
-        olc::Sprite camera = this->newLayer(map.height * scale, map.width * scale);
+        olc::Sprite mapView = this->newLayer(map.size().y * scale, map.size().x * scale);
+        olc::Sprite camera = this->newLayer(map.size().y * scale, map.size().x * scale);
         Vec2d cameraPlane = this->getCameraPlane(player.dir);
         Vec2d curTile(std::floor(player.pos.x) - player.pos.x, std::floor(player.pos.y) - player.pos.y);
 
@@ -66,11 +66,11 @@ private:
         this->DrawLine(player.pos * scale, (player.pos+player.dir-cameraPlane) * scale, olc::DARK_MAGENTA);
         this->DrawLine(player.pos * scale, (player.pos+player.dir+cameraPlane) * scale, olc::DARK_MAGENTA);
 
-        olc::Sprite airs = this->newLayer(map.height * scale, map.width * scale);
-        olc::Sprite walls = this->newLayer(map.height * scale, map.width * scale);
-        for (int32_t row = 0; row < map.height; ++row)
+        olc::Sprite airs = this->newLayer(map.size().y * scale, map.size().x * scale);
+        olc::Sprite walls = this->newLayer(map.size().y * scale, map.size().x * scale);
+        for (int32_t row = 0; row < map.size().y; ++row)
         {
-            for (int32_t col = 0; col < map.width; ++col)
+            for (int32_t col = 0; col < map.size().x; ++col)
             {
                 if (map[Vec2i(col, row)] != 0)
                 {

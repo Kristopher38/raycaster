@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (UNIX)
 	set(CMAKE_CXX_FLAGS "-lX11 -lGL -lpthread -lpng")
 endif (UNIX)
-add_executable(raycaster main.cpp)
+add_executable(raycaster main.cpp player.cpp map.cpp)
 
 if(WIN32)
 	target_link_libraries(raycaster gdi32.lib)

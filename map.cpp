@@ -1,6 +1,4 @@
 #include "map.h"
-#include "json.hpp"
-#include <fstream>
 
 const ParsedEnum<std::string, Map::ORIENTATION> Map::orientationEnum{{
     {"none", Map::ORIENTATION::NONE},
@@ -24,20 +22,14 @@ const ParsedEnum<std::string, Map::TYPE> Map::typeEnum{{
     {"tileset", Map::TYPE::TILESET}
 }};
 
-Map::Map() {}
-
-Map::Map(std::string filename) : Map()
+Map::Map()
 {
-    std::ifstream jsonFile(filename);
-    this->loadJson(nlohmann::json::parse(jsonFile));
+
 }
 
-int32_t& Map::operator[](Vec2i coords)
+Map::Map(const nlohmann::json& json)
 {
-    if (this->inGridRange(coords))
-        return this->grid[coords.y][coords.x];
-    else
-        throw std::out_of_range("Map index out of range");
+    this->loadJson(json);
 }
 
 olc::Sprite* Map::getTile(int32_t tileIndex)
@@ -45,7 +37,7 @@ olc::Sprite* Map::getTile(int32_t tileIndex)
     return this->tiles.at(tileIndex).get();
 }
 
-void Map::loadJson(nlohmann::json json)
+void Map::loadJson(const nlohmann::json& json)
 {
     this->type = typeEnum.parse(json.value("type", "none"));
     switch(this->type)
@@ -65,10 +57,28 @@ void Map::loadJson(nlohmann::json json)
             this->orientation = orientationEnum.parse(json.value("orientation", "none"));
             this->renderOrder = renderOrderEnum.parse(json.value("renderorder", "none"));
 
-
-            std::vector<int32_t> mapGrid = json["layers"][0]["data"];
-            for (std::size_t i = 0; i < mapGrid.size(); i += this->size().x)
-                this->grid.push_back(std::vector<int32_t>(mapGrid.begin() + i, mapGrid.begin() + i + this->size().x));
+            for (auto layer : json.value("layers", nlohmann::json::array()))
+            {
+                MapLayer::TYPE layerType = MapLayer::typeEnum.parse(layer.value("type", "none"));
+                switch (layerType)
+                {
+                    case MapLayer::TYPE::TILE:
+                        this->layers.push_back(std::make_shared<TileLayer>(layer));
+                        break;
+                    /*case MapLayer::TYPE::OBJECT:
+                        this->layers.push_back(std::make_shared<ObjectLayer>(json));
+                        break;
+                    case MapLayer::TYPE::IMAGE:
+                        this->layers.push_back(std::make_shared<ImageLayer>(json));
+                        break;
+                    case MapLayer::TYPE::GROUP:
+                        this->layers.push_back(std::make_shared<GroupLayer>(json));
+                        break;*/
+                    case MapLayer::TYPE::NONE:
+                    default:
+                        break;
+                }
+            }
             nlohmann::json tileData = json["tilesets"][0]["tiles"];
             this->tiles.reserve(tileData.size());
             for (auto& tile : tileData)
@@ -79,17 +89,6 @@ void Map::loadJson(nlohmann::json json)
         case Map::TYPE::NONE:
             throw std::logic_error("Invalid or not implemented map type");
     }
-}
-
-
-bool Map::hasWall(Vec2i coords)
-{
-    return this->inGridRange(coords) && this->grid[coords.y][coords.x] != 0;
-}
-
-bool Map::inGridRange(Vec2i coords)
-{
-    return coords.y >= 0 && coords.y < this->grid.size() && coords.x >= 0 && coords.x < this->grid[coords.y].size();
 }
 
 const Vec2i& Map::size()

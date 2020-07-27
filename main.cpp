@@ -28,7 +28,7 @@ class Raycaster : public olc::PixelGameEngine
 private:
     const double fov = M_PI_2 * 2.0f/3.0f; // 60 degrees
     Player player = Player(Vec2d(4.3, 5.7), Vec2d(-1, 0));
-    Map map = Map("testmap.json");
+    Map map;
     std::vector<int> debugLines;
 
     inline Vec2d getCameraPlane(Vec2d dir)
@@ -72,7 +72,7 @@ private:
         {
             for (int32_t col = 0; col < map.size().x; ++col)
             {
-                if (map[Vec2i(col, row)] != 0)
+                if (map.getLayer<TileLayer>(0)[Vec2i(col, row)] != 0)
                 {
                     this->SetDrawTarget(&walls);
                     this->FillRect(row * scale, col * scale, scale, scale, olc::Pixel(61, 201, 56)); // slightly dark green
@@ -123,7 +123,7 @@ private:
         WALL_SIDE side = WALL_SIDE::NONE;
         try
         {
-            while (!this->map.hasWall(mapPos))
+            while (!this->map.getLayer<TileLayer>(0).hasWall(mapPos))
             {
                 if (curRayDist.x < curRayDist.y)
                 {
@@ -183,7 +183,7 @@ private:
             RaycastResult ray = raycast(rayDir);
 
             ray.hitPoint -= std::floor(ray.hitPoint);
-            int32_t tileIndex = map[ray.mapPos] - 1;
+            int32_t tileIndex = map.getLayer<TileLayer>(0)[ray.mapPos] - 1;
             double textureHeight = static_cast<double>(this->map.getTile(tileIndex)->height);
             double textureWidth = static_cast<double>(this->map.getTile(tileIndex)->width);
             double lineHeight = static_cast<double>(this->ScreenHeight()) / ray.hitDist;
@@ -244,6 +244,8 @@ public:
 
     bool OnUserCreate() override
     {
+        std::ifstream mapFile("testmap.json");
+        this->map.loadJson(nlohmann::json::parse(mapFile));
         return true;
     }
 

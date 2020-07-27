@@ -8,6 +8,8 @@
 #include "json.hpp"
 #include "typedefs.h"
 #include "parsedenum.h"
+#include "maplayer.h"
+#include <fstream>
 
 class Map
 {
@@ -16,7 +18,7 @@ public:
     enum class RENDER_ORDER {NONE, LEFT_UP, LEFT_DOWN, RIGHT_UP, RIGHT_DOWN};
     enum class TYPE {NONE, MAP, TILESET};
 
-public:
+private:
     static const ParsedEnum<std::string, ORIENTATION> orientationEnum;
     static const ParsedEnum<std::string, RENDER_ORDER> renderOrderEnum;
     static const ParsedEnum<std::string, TYPE> typeEnum;
@@ -35,17 +37,23 @@ private:
     Vec2i mapSize;
 
 	std::vector<std::unique_ptr<olc::Sprite>> tiles;
-    std::vector<std::vector<int32_t>> grid;
+    std::vector<std::shared_ptr<MapLayer>> layers;
 public:
-	Map();
-    Map(std::string filename);
+    Map();
+    Map(const nlohmann::json& json);
 
-    int32_t& operator[](Vec2i coords);
+    template<typename T> T& getLayer(int32_t layerIndex)
+    {
+        std::shared_ptr<T> layer = std::dynamic_pointer_cast<T>(this->layers.at(layerIndex));
+        if (layer)
+            return *layer;
+        else
+            throw std::logic_error("Invalid layer type");
+    }
+
     olc::Sprite* getTile(int32_t tileIndex);
 
-    void loadJson(nlohmann::json json);
-    bool hasWall(Vec2i coords);
-    bool inGridRange(Vec2i coords);
+    void loadJson(const nlohmann::json& json);
     const Vec2i& size();
 };
 

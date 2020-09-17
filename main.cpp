@@ -189,8 +189,9 @@ private:
                 double textureWidth = tile->getImageSize().x;
                 double textureHeight = tile->getImageSize().y;
                 double lineHeight = static_cast<double>(this->ScreenHeight()) / ray.hitDist;
+                int32_t lineLength = lineHeight > this->ScreenHeight() ? this->ScreenHeight() : lineHeight;
 
-                Vec2d texturePos(ray.hitPoint * textureWidth, 0.0f);
+                Vec2d texturePos(ray.hitPoint * textureWidth, (lineHeight - lineLength) / lineHeight / 2 * textureHeight);
                 if (ray.wallSide == WALL_SIDE::VERTICAL && rayDir.x > 0)
                     texturePos.x = texturePos.x - 1;
                 if (ray.wallSide == WALL_SIDE::HORIZONTAL && rayDir.y < 0)
@@ -198,7 +199,7 @@ private:
                 double textureStep = textureHeight / lineHeight;
 
                 const auto sprite = spritesData.at(tile->getImage()).get();
-                for (int32_t row = this->ScreenHeight() / 2 - lineHeight / 2; row < this->ScreenHeight()/2 + lineHeight/2; ++row)
+                for (int32_t row = this->ScreenHeight() / 2 - lineLength / 2; row < this->ScreenHeight()/2 + lineLength/2; ++row)
                 {
                     olc::Pixel p = sprite->GetPixel(texturePos);
                     texturePos.y += textureStep;

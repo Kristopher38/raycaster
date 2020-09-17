@@ -197,9 +197,10 @@ private:
                     texturePos.x = texturePos.x - 1;
                 double textureStep = textureHeight / lineHeight;
 
+                const auto sprite = spritesData.at(tile->getImage()).get();
                 for (int32_t row = this->ScreenHeight() / 2 - lineHeight / 2; row < this->ScreenHeight()/2 + lineHeight/2; ++row)
                 {
-                    olc::Pixel p = spritesData.at(tile->getImage())->GetPixel(texturePos);
+                    olc::Pixel p = sprite->GetPixel(texturePos);
                     texturePos.y += textureStep;
                     this->Draw(col, row, p);
                 }

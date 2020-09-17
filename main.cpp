@@ -37,28 +37,57 @@ private:
         return dir.perp().norm() * std::tan(this->fov / 2.0f) * dir.mag();
     }
 
-    inline olc::Sprite newLayer(uint32_t w, uint32_t h)
+    inline void clearSprite(std::unique_ptr<olc::Sprite> sprite)
     {
-        olc::Sprite sprite(w, h);
-        this->SetDrawTarget(&sprite);
+        this->SetDrawTarget(sprite.get());
+        this->Clear(olc::BLANK);
+        this->SetDrawTarget(nullptr);
+    }
+
+    inline std::unique_ptr<olc::Sprite> newLayer(uint32_t w, uint32_t h)
+    {
+        std::unique_ptr<olc::Sprite> sprite = std::make_unique<olc::Sprite>(w, h);
+        this->SetDrawTarget(sprite.get());
         this->Clear(olc::BLANK);
         this->SetDrawTarget(nullptr);
         return sprite;
     }
 
-    inline olc::Sprite newLayer()
+    inline std::unique_ptr<olc::Sprite> newLayer()
     {
         return this->newLayer(this->ScreenWidth(), this->ScreenHeight());
     }
 
-    olc::Sprite renderMap(float elapsedTime, double scale)
+    void renderMap(float elapsedTime, double scale)
     {
-        olc::Sprite mapView = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
-        olc::Sprite camera = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
         Vec2d cameraPlane = this->getCameraPlane(player.dir);
         Vec2d curTile(std::floor(player.pos.x) - player.pos.x, std::floor(player.pos.y) - player.pos.y);
 
-        this->SetDrawTarget(&camera);
+        static auto airs = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
+        static auto walls = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
+        for (int32_t row = 0; row < map.getSize().y; ++row)
+        {
+            for (int32_t col = 0; col < map.getSize().x; ++col)
+            {
+                if (map.getLayer("walls")->getTileData(col, row) != nullptr)
+                {
+                    this->SetDrawTarget(walls.get());
+                    this->FillRect(row * scale, col * scale, scale, scale, olc::Pixel(61, 201, 56)); // slightly dark green
+                    this->DrawRect(row * scale, col * scale, scale, scale, olc::Pixel(72, 245, 66)); // bright green
+                }
+                else
+                {
+                    this->SetDrawTarget(airs.get());
+                    this->DrawRect(row * scale, col * scale, scale, scale, olc::Pixel(38, 125, 35)); // darkest green
+                }
+            }
+        }
+
+        this->SetDrawTarget(nullptr);
+        this->DrawSprite(0, 0, airs.get());
+        this->DrawSprite(0, 0, walls.get());
+
+        // draw camera triangle
         this->FillRect((player.pos + curTile) * scale + Vec2d(1.0, 1.0), Vec2d(scale, scale) - Vec2d(1.0, 1.0), olc::GREY);
         this->FillCircle(player.pos * scale, 0.25 * scale, olc::RED);
         this->DrawLine(player.pos * scale, (player.pos+player.dir) * scale, olc::YELLOW);
@@ -66,33 +95,6 @@ private:
                        (player.pos+player.dir+cameraPlane) * scale, olc::MAGENTA);
         this->DrawLine(player.pos * scale, (player.pos+player.dir-cameraPlane) * scale, olc::DARK_MAGENTA);
         this->DrawLine(player.pos * scale, (player.pos+player.dir+cameraPlane) * scale, olc::DARK_MAGENTA);
-
-        olc::Sprite airs = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
-        olc::Sprite walls = this->newLayer(map.getSize().y * scale, map.getSize().x * scale);
-        for (int32_t row = 0; row < map.getSize().y; ++row)
-        {
-            for (int32_t col = 0; col < map.getSize().x; ++col)
-            {
-                if (map.getLayer("walls")->getTileData(col, row) != nullptr)
-                {
-                    this->SetDrawTarget(&walls);
-                    this->FillRect(row * scale, col * scale, scale, scale, olc::Pixel(61, 201, 56)); // slightly dark green
-                    this->DrawRect(row * scale, col * scale, scale, scale, olc::Pixel(72, 245, 66)); // bright green
-                }
-                else
-                {
-                    this->SetDrawTarget(&airs);
-                    this->DrawRect(row * scale, col * scale, scale, scale, olc::Pixel(38, 125, 35)); // darkest green
-                }
-            }
-        }
-        this->SetDrawTarget(&mapView);
-        this->DrawSprite(0, 0, &airs);
-        this->DrawSprite(0, 0, &walls);
-        this->DrawSprite(0, 0, &camera);
-        this->SetDrawTarget(nullptr);
-
-        return mapView;
     }
 
     RaycastResult raycast(Vec2d rayDir)
@@ -166,12 +168,8 @@ private:
         return RaycastResult{wallHitPos, hitDist, side, mapPos};
     }
 
-    olc::Sprite renderScene(float elapsedTime)
+    void renderScene(float elapsedTime)
     {
-        olc::Sprite scene = this->newLayer();
-        olc::Sprite mapView = renderMap(elapsedTime, 10);
-        olc::Sprite walls = this->newLayer();
-
         Vec2d cameraPlane = this->getCameraPlane(player.dir);
 
         for (int32_t col = 0; col < this->ScreenWidth(); ++col)
@@ -207,22 +205,17 @@ private:
                 }
             }
         }
-
-        this->SetDrawTarget(&scene);
-        this->DrawSprite(0, 0, &walls);
-        this->DrawSprite(0, 0, &mapView);
-
-        this->SetDrawTarget(nullptr);
-        return scene;
     }
 
     void render(float elapsedTime)
     {
+        this->SetDrawTarget(nullptr);
         this->SetPixelMode(olc::Pixel::Mode::MASK);
         this->Clear(olc::BLACK);
 
-        olc::Sprite scene = this->renderScene(elapsedTime);
-        this->DrawSprite(0, 0, &scene);
+        this->renderScene(elapsedTime);
+        this->renderMap(elapsedTime, 10);
+        //this->DrawSprite(0, 0, scene.get());
     }
 
     void handleInput(float elapsedTime)

@@ -21,7 +21,7 @@ public:
 	TYPE type;
 	bool visible;
     Vec2i pos;
-    Color tintColor;
+    olc::Pixel tintColor;
     Vec2i offset;
 
     MapLayer(const nlohmann::json& json);

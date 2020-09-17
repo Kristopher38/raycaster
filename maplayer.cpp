@@ -30,6 +30,8 @@ void MapLayer::loadJson(const nlohmann::json &json)
     this->pos.y = json.value("y", 0);
     this->offset.x = json.value("offsetx", 0);
     this->offset.y = json.value("offsety", 0);
+    std::string tintColor = json.value("tintcolor", "#000000");
+
 }
 
 TileLayer::TileLayer(const nlohmann::json &json) : MapLayer(json)

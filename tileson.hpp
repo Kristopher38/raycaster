@@ -23504,7 +23504,7 @@ namespace tson
 			[[nodiscard]] inline const std::string &getTemplate() const;
 			[[nodiscard]] inline const std::string &getType() const;
 			[[nodiscard]] inline bool isVisible() const;
-			[[nodiscard]] inline const Vector2i &getPosition() const;
+            [[nodiscard]] inline const Vector2f &getPosition() const;
 
 			[[nodiscard]] inline const std::vector<tson::Vector2i> &getPolygons() const;
 			[[nodiscard]] inline const std::vector<tson::Vector2i> &getPolylines() const;
@@ -23533,7 +23533,7 @@ namespace tson
 			tson::Text                        m_text; 	                               /*! first: 'text' second: 'wrap' */
 			std::string                       m_type;                                  /*! 'type': String assigned to type field in editor */
 			bool                              m_visible {};                            /*! 'visible': Whether object is shown in editor. */
-			tson::Vector2i                    m_position;                              /*! 'x' and 'y': coordinate in pixels */
+            tson::Vector2f                    m_position;                              /*! 'x' and 'y': coordinate in pixels */
 	};
 
 	/*!
@@ -23581,7 +23581,7 @@ bool tson::Object::parse(const nlohmann::json &json)
 	if(json.count("width") > 0 && json.count("height") > 0)
 		m_size = {json["width"].get<int>(), json["height"].get<int>()}; else allFound = false;
 	if(json.count("x") > 0 && json.count("y") > 0)
-		m_position = {json["x"].get<int>(), json["y"].get<int>()}; else allFound = false;
+        m_position = {json["x"].get<float>(), json["y"].get<float>()}; else allFound = false;
 
 	if(json.count("text") > 0)
 		m_text = {json["text"]["text"].get<std::string>(), json["text"]["wrap"].get<bool>()}; //Optional
@@ -23735,7 +23735,7 @@ bool tson::Object::isVisible() const
  * 'x' and 'y': coordinate in pixels
  * @return
  */
-const tson::Vector2i &tson::Object::getPosition() const
+const tson::Vector2f &tson::Object::getPosition() const
 {
 	return m_position;
 }

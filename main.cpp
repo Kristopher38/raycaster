@@ -255,6 +255,11 @@ public:
                     this->spritesData.emplace(tile.getImage(), std::make_unique<olc::Sprite>("maps/"+tile.getImage().string()));
                 }
             }
+            auto playerObj = this->map.getLayer("objects")->firstObj("player");
+            this->player.pos.x = playerObj->getPosition().x / this->map.getTileSize().x;
+            this->player.pos.y = playerObj->getPosition().y / this->map.getTileSize().y;
+            this->player.dir.x = cos(playerObj->getRotation() / 180 * M_PI);
+            this->player.dir.y = sin(playerObj->getRotation() / 180 * M_PI);
             return true;
         }
         else
